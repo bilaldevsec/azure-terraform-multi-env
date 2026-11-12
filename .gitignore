@@ -1,0 +1,50 @@
+# ==============================================================================
+# Terraform Gitignore - Multi-Environment Azure Infrastructure
+# ==============================================================================
+
+# Local .terraform directories containing downloaded providers and modules
+**/.terraform/*
+.terraform/
+
+# Terraform state files (CRITICAL: prevents state & secret leakage)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Sensitive variable definition files
+*.tfvars
+*.tfvars.json
+# Exclude example template files from gitignore
+!*.tfvars.example
+
+# Terraform crash and debug logs
+crash.log
+crash.*.log
+
+# Override files (local developer overrides)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration and credentials
+.terraformrc
+terraform.rc
+
+# Environment and secrets files
+.env
+.env.*
+*.secret
+
+# IDE and OS specific metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Optional: Dependency lock file
+# Note: For production module consumers, committing .terraform.lock.hcl is recommended
+# for deterministic builds. If you prefer to ignore lockfiles, uncomment below:
+# .terraform.lock.hcl

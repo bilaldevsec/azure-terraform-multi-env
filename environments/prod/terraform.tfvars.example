@@ -1,0 +1,27 @@
+# ==============================================================================
+# Production Environment - Configuration Variables Template
+# Copy to terraform.tfvars or pass via -var-file=terraform.tfvars
+# ==============================================================================
+
+environment = "prod"
+location    = "southeastasia"
+
+# Prod VNet CIDR Block (10.20.0.0/16)
+vnet_cidr = ["10.20.0.0/16"]
+
+# 3-Tier Subnet Allocations (/24 = 251 usable Azure IPs each)
+web_subnet_cidr = "10.20.1.0/24"
+app_subnet_cidr = "10.20.2.0/24"
+db_subnet_cidr  = "10.20.3.0/24"
+
+# Optional: Provide explicit Azure Active Directory Tenant ID for Key Vault.
+# Leave as empty string to automatically infer from the authenticated Azure CLI profile.
+tenant_id = ""
+
+# Environment-specific metadata tags
+custom_tags = {
+  Owner       = "SRE-CloudOps"
+  CostCenter  = "Production-Core"
+  Criticality = "Mission-Critical"
+  Environment = "prod"
+}

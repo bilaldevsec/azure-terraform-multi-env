@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azure Infrastructure Architecture - Multi-Environment Zero-Trust Terraform</title>
+  <style>
+    :root {
+      --azure-blue: #0078d4;
+      --azure-blue-dark: #004c87;
+      --azure-light: #f0f7ff;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-300: #cbd5e1;
+      --slate-400: #94a3b8;
+      --slate-600: #475569;
+      --slate-700: #334155;
+      --slate-800: #1e293b;
+      --slate-900: #0f172a;
+      --emerald-500: #10b981;
+      --emerald-600: #059669;
+      --emerald-50: #ecfdf5;
+      --amber-500: #f59e0b;
+      --amber-50: #fffbeb;
+      --rose-500: #ef4444;
+      --rose-50: #fef2f2;
+      --indigo-600: #4f46e5;
+      --purple-600: #7c3aed;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: #ffffff;
+      color: var(--slate-800);
+      line-height: 1.5;
+      padding: 32px 20px 60px;
+    }
+
+    .container {
+      max-width: 1360px;
+      margin: 0 auto;
+    }
+
+    header {
+      border-bottom: 2px solid var(--slate-100);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .badge-azure { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+    .badge-tf { background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; }
+    .badge-security { background: var(--emerald-50); color: var(--emerald-600); border: 1px solid #a7f3d0; }
+    .badge-cost { background: var(--amber-50); color: #b45309; border: 1px solid #fde68a; }
+
+    h1 {
+      font-size: 2.1rem;
+      font-weight: 800;
+      color: var(--slate-900);
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 1.05rem;
+      color: var(--slate-600);
+      max-width: 900px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--slate-200);
+      padding-bottom: 8px;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      padding: 8px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--slate-600);
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn.active {
+      background: var(--azure-blue);
+      color: #ffffff;
+    }
+
+    .tab-btn:hover:not(.active) {
+      background: var(--slate-100);
+      color: var(--slate-900);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Diagram Canvas */
+    .diagram-frame {
+      background: #ffffff;
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+      margin-bottom: 32px;
+      overflow-x: auto;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-width: 1080px;
+    }
+
+    /* Stats & Info Cards */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid var(--slate-200);
+      border-radius: 10px;
+      padding: 22px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--slate-900);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    .table th {
+      background-color: var(--slate-50);
+      color: var(--slate-700);
+      font-weight: 600;
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--slate-200);
+    }
+
+    .table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--slate-100);
+      color: var(--slate-700);
+    }
+
+    .table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .tag-allow {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--emerald-50);
+      color: var(--emerald-600);
+      border: 1px solid #a7f3d0;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.75rem;
+    }
+
+    .tag-deny {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--rose-50);
+      color: var(--rose-500);
+      border: 1px solid #fecaca;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.75rem;
+    }
+
+    .code-pill {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.82rem;
+      background: var(--slate-100);
+      color: var(--slate-800);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    footer {
+      border-top: 1px solid var(--slate-200);
+      padding-top: 20px;
+      color: var(--slate-600);
+      font-size: 0.85rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="badge-row">
+      <span class="badge badge-azure">AzureRM Provider v5.x</span>
+      <span class="badge badge-tf">HashiCorp Terraform &ge; 1.5</span>
+      <span class="badge badge-security">Zero-Trust NSG Isolation</span>
+      <span class="badge badge-cost">Azure for Students ($0 Compute Idle)</span>
+    </div>
+    <h1>Multi-Environment Azure Infrastructure Architecture</h1>
+    <p class="subtitle">
+      Production-grade, modular Terraform deployment showcasing 3-tier perimeter defense, strict lateral movement restrictions, isolated Dev &amp; Prod environments, and unified key/state governance.
+    </p>
+  </header>
+
+  <!-- Interactive View Selectors -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('tab-diagram')">Architectural Blueprint (SVG)</button>
+    <button class="tab-btn" onclick="switchTab('tab-security')">Zero-Trust Security Matrix</button>
+    <button class="tab-btn" onclick="switchTab('tab-subnets')">IP Addressing &amp; CIDR Plan</button>
+  </div>
+
+  <!-- TAB 1: ARCHITECTURE DIAGRAM -->
+  <div id="tab-diagram" class="tab-content active">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 1280 840" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="bg-grad-dev" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#f8fafc" />
+            <stop offset="100%" stop-color="#f1f5f9" />
+          </linearGradient>
+          <linearGradient id="bg-grad-prod" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#f0f9ff" />
+            <stop offset="100%" stop-color="#e0f2fe" />
+          </linearGradient>
+          <linearGradient id="azure-blue-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#0078d4" />
+            <stop offset="100%" stop-color="#0284c7" />
+          </linearGradient>
+          <filter id="shadow" x="-4%" y="-4%" width="108%" height="108%" filterUnits="userSpaceOnUse">
+            <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.06"/>
+          </filter>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#0284c7" />
+          </marker>
+          <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#10b981" />
+          </marker>
+        </defs>
+
+        <!-- TOP BAR: TERRAFORM CLI & MODULES LAYER -->
+        <g id="terraform-orchestration">
+          <!-- Developer / CLI Source -->
+          <rect x="40" y="30" width="220" height="95" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)" />
+          <rect x="40" y="30" width="220" height="28" rx="8" fill="#475569" />
+          <rect x="40" y="50" width="220" height="8" fill="#475569" />
+          <text x="54" y="49" fill="#ffffff" font-size="12" font-weight="700">Terraform CLI / CI Pipeline</text>
+          <text x="54" y="82" fill="#0f172a" font-size="13" font-weight="600">terraform init / plan</text>
+          <text x="54" y="102" fill="#64748b" font-size="11">environments/{dev, prod}</text>
+
+          <!-- Module Abstraction Card -->
+          <rect x="340" y="30" width="880" height="95" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)" />
+          <rect x="340" y="30" width="880" height="28" rx="8" fill="url(#azure-blue-grad)" />
+          <rect x="340" y="50" width="880" height="8" fill="#0078d4" />
+          <text x="356" y="49" fill="#ffffff" font-size="12" font-weight="700">Reusable Modular Core Architecture (Root /modules)</text>
+
+          <!-- Sub Module 1: Network -->
+          <rect x="360" y="68" width="260" height="46" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" />
+          <text x="372" y="88" fill="#0f172a" font-size="12" font-weight="700">modules/network</text>
+          <text x="372" y="104" fill="#64748b" font-size="10">azurerm_resource_group, vnet, subnets</text>
+
+          <!-- Sub Module 2: Security -->
+          <rect x="650" y="68" width="260" height="46" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" />
+          <text x="662" y="88" fill="#0f172a" font-size="12" font-weight="700">modules/security</text>
+          <text x="662" y="104" fill="#64748b" font-size="10">nsg-web, app, db + Subnet Associations</text>
+
+          <!-- Sub Module 3: Storage & Vault -->
+          <rect x="940" y="68" width="260" height="46" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" />
+          <text x="952" y="88" fill="#0f172a" font-size="12" font-weight="700">modules/storage_vault</text>
+          <text x="952" y="104" fill="#64748b" font-size="10">random_string, storage_account, key_vault</text>
+
+          <!-- Pipeline Connectors -->
+          <path d="M 260 78 L 340 78" stroke="#0078d4" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#arrow)" />
+        </g>
+
+        <!-- DISPATCH ARROWS DOWNWARD -->
+        <path d="M 490 125 L 490 160 L 320 160 L 320 185" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow)" />
+        <path d="M 780 125 L 780 160 L 960 160 L 960 185" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow)" />
+
+        <!-- ========================================================================= -->
+        <!-- ENVIRONMENT 1: DEV (LEFT COLUMN) -->
+        <!-- ========================================================================= -->
+        <g id="dev-environment">
+          <!-- Resource Group Outer Boundary -->
+          <rect x="40" y="190" width="580" height="610" rx="12" fill="url(#bg-grad-dev)" stroke="#94a3b8" stroke-width="1.5" />
+          <rect x="40" y="190" width="580" height="36" rx="12" fill="#334155" />
+          <rect x="40" y="214" width="580" height="12" fill="#334155" />
+          <text x="60" y="214" fill="#ffffff" font-size="13" font-weight="700">AZURE RESOURCE GROUP: rg-dev (Location: Southeast Asia)</text>
+          <text x="440" y="214" fill="#94a3b8" font-size="11">Tag: Env=dev</text>
+
+          <!-- VNet Boundary -->
+          <rect x="60" y="240" width="540" height="400" rx="10" fill="#ffffff" stroke="#0284c7" stroke-width="1.5" stroke-dasharray="6 3" />
+          <text x="76" y="262" fill="#0284c7" font-size="12" font-weight="700">VIRTUAL NETWORK: vnet-dev [ Address Space: 10.10.0.0/16 ]</text>
+
+          <!-- Subnet 1: Web -->
+          <g id="dev-web-subnet">
+            <rect x="80" y="280" width="500" height="92" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" />
+            <rect x="80" y="280" width="500" height="24" rx="8" fill="#e2e8f0" />
+            <rect x="80" y="296" width="500" height="8" fill="#e2e8f0" />
+            <text x="94" y="297" fill="#0f172a" font-size="11" font-weight="700">Tier 1: snet-web (10.10.1.0/24)</text>
+            <text x="410" y="297" fill="#0284c7" font-size="10" font-weight="600">Attached: nsg-web-dev</text>
+            
+            <rect x="94" y="312" width="220" height="22" rx="4" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1" />
+            <text x="102" y="327" fill="#065f46" font-size="10" font-weight="600">&#10004; Priority 100: Allow TCP 443 (Internet)</text>
+
+            <rect x="330" y="312" width="234" height="22" rx="4" fill="#fef2f2" stroke="#fecaca" stroke-width="1" />
+            <text x="338" y="327" fill="#991b1b" font-size="10" font-weight="600">&#10006; Priority 4096: Deny-All-Inbound</text>
+            
+            <text x="94" y="356" fill="#64748b" font-size="10">Purpose: Public-facing ingestion reverse proxies &amp; API gateways</text>
+          </g>
+
+          <!-- Flow Arrow Web -> App -->
+          <path d="M 330 372 L 330 395" stroke="#10b981" stroke-width="2.5" marker-end="url(#arrow-green)" />
+          <rect x="340" y="375" width="160" height="18" rx="3" fill="#ecfdf5" stroke="#10b981" stroke-width="0.8" />
+          <text x="346" y="388" fill="#047857" font-size="9" font-weight="700">Allow TCP 8080 (Web CIDR Only)</text>
+
+          <!-- Subnet 2: App -->
+          <g id="dev-app-subnet">
+            <rect x="80" y="400" width="500" height="92" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" />
+            <rect x="80" y="400" width="500" height="24" rx="8" fill="#e2e8f0" />
+            <rect x="80" y="416" width="500" height="8" fill="#e2e8f0" />
+            <text x="94" y="417" fill="#0f172a" font-size="11" font-weight="700">Tier 2: snet-app (10.10.2.0/24)</text>
+            <text x="410" y="417" fill="#0284c7" font-size="10" font-weight="600">Attached: nsg-app-dev</text>
+
+            <rect x="94" y="432" width="220" height="22" rx="4" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1" />
+            <text x="102" y="447" fill="#065f46" font-size="10" font-weight="600">&#10004; Priority 100: Allow TCP 8080 (snet-web)</text>
+
+            <rect x="330" y="432" width="234" height="22" rx="4" fill="#fef2f2" stroke="#fecaca" stroke-width="1" />
+            <text x="338" y="447" fill="#991b1b" font-size="10" font-weight="600">&#10006; Priority 4096: Deny-All-Inbound</text>
+
+            <text x="94" y="476" fill="#64748b" font-size="10">Purpose: Business logic, microservices, container compute nodes</text>
+          </g>
+
+          <!-- Flow Arrow App -> DB -->
+          <path d="M 330 492 L 330 515" stroke="#10b981" stroke-width="2.5" marker-end="url(#arrow-green)" />
+          <rect x="340" y="495" width="160" height="18" rx="3" fill="#ecfdf5" stroke="#10b981" stroke-width="0.8" />
+          <text x="346" y="508" fill="#047857" font-size="9" font-weight="700">Allow TCP 5432 (App CIDR Only)</text>
+
+          <!-- Subnet 3: DB -->
+          <g id="dev-db-subnet">
+            <rect x="80" y="520" width="500" height="92" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" />
+            <rect x="80" y="520" width="500" height="24" rx="8" fill="#e2e8f0" />
+            <rect x="80" y="536" width="500" height="8" fill="#e2e8f0" />
+            <text x="94" y="537" fill="#0f172a" font-size="11" font-weight="700">Tier 3: snet-db (10.10.3.0/24)</text>
+            <text x="410" y="537" fill="#0284c7" font-size="10" font-weight="600">Attached: nsg-db-dev</text>
+
+            <rect x="94" y="552" width="220" height="22" rx="4" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1" />
+            <text x="102" y="567" fill="#065f46" font-size="10" font-weight="600">&#10004; Priority 100: Allow TCP 5432 (snet-app)</text>
+
+            <rect x="330" y="552" width="234" height="22" rx="4" fill="#fef2f2" stroke="#fecaca" stroke-width="1" />
+            <text x="338" y="567" fill="#991b1b" font-size="10" font-weight="600">&#10006; Priority 4096: Deny-All-Inbound</text>
+
+            <text x="94" y="596" fill="#64748b" font-size="10">Purpose: Isolated persistence tier (PostgreSQL / Managed DB)</text>
+          </g>
+
+          <!-- Dev Storage & Vault Resources -->
+          <g id="dev-storage-vault">
+            <!-- Key Vault -->
+            <rect x="60" y="660" width="260" height="120" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2" />
+            <rect x="60" y="660" width="260" height="26" rx="8" fill="#7c3aed" />
+            <rect x="60" y="678" width="260" height="8" fill="#7c3aed" />
+            <text x="74" y="678" fill="#ffffff" font-size="11" font-weight="700">Azure Key Vault (kv-dev-******)</text>
+            <text x="74" y="706" fill="#0f172a" font-size="11" font-weight="600">SKU: Standard</text>
+            <text x="74" y="724" fill="#64748b" font-size="10">&#8226; RBAC Authorization: Enabled</text>
+            <text x="74" y="742" fill="#64748b" font-size="10">&#8226; Purge Protection: Disabled (Clean Destroy)</text>
+            <text x="74" y="760" fill="#64748b" font-size="10">&#8226; Secrets, Keys &amp; Certificates</text>
+
+            <!-- Storage Account -->
+            <rect x="340" y="660" width="260" height="120" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2" />
+            <rect x="340" y="660" width="260" height="26" rx="8" fill="#0284c7" />
+            <rect x="340" y="678" width="260" height="8" fill="#0284c7" />
+            <text x="354" y="678" fill="#ffffff" font-size="11" font-weight="700">Storage Account (stdev******)</text>
+            <text x="354" y="706" fill="#0f172a" font-size="11" font-weight="600">Standard_LRS (Local Redundancy)</text>
+            <text x="354" y="724" fill="#64748b" font-size="10">&#8226; Min TLS Version: TLS 1.2</text>
+            <text x="354" y="742" fill="#64748b" font-size="10">&#8226; Public Nested Items: Disabled</text>
+            <text x="354" y="760" fill="#64748b" font-size="10">&#8226; State backend &amp; log ingestion</text>
+          </g>
+        </g>
+
+        <!-- ========================================================================= -->
+        <!-- ENVIRONMENT 2: PROD (RIGHT COLUMN) -->
+        <!-- ========================================================================= -->
+        <g id="prod-environment">
+          <!-- Resource Group Outer Boundary -->
+          <rect x="660" y="190" width="580" height="610" rx="12" fill="url(#bg-grad-prod)" stroke="#0284c7" stroke-width="1.5" />
+          <rect x="660" y="190" width="580" height="36" rx="12" fill="#004c87" />
+          <rect x="660" y="214" width="580" height="12" fill="#004c87" />
+          <text x="680" y="214" fill="#ffffff" font-size="13" font-weight="700">AZURE RESOURCE GROUP: rg-prod (Location: Southeast Asia)</text>
+          <text x="1050" y="214" fill="#bae6fd" font-size="11">Tag: Env=prod</text>
+
+          <!-- VNet Boundary -->
+          <rect x="680" y="240" width="540" height="400" rx="10" fill="#ffffff" stroke="#0078d4" stroke-width="1.5" stroke-dasharray="6 3" />
+          <text x="696" y="262" fill="#0078d4" font-size="12" font-weight="700">VIRTUAL NETWORK: vnet-prod [ Address Space: 10.20.0.0/16 ]</text>
+
+          <!-- Subnet 1: Web -->
+          <g id="prod-web-subnet">
+            <rect x="700" y="280" width="500" height="92" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" />
+            <rect x="700" y="280" width="500" height="24" rx="8" fill="#e2e8f0" />
+            <rect x="700" y="296" width="500" height="8" fill="#e2e8f0" />
+            <text x="714" y="297" fill="#0f172a" font-size="11" font-weight="700">Tier 1: snet-web (10.20.1.0/24)</text>
+            <text x="1020" y="297" fill="#0078d4" font-size="10" font-weight="600">Attached: nsg-web-prod</text>
+
+            <rect x="714" y="312" width="220" height="22" rx="4" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1" />
+            <text x="722" y="327" fill="#065f46" font-size="10" font-weight="600">&#10004; Priority 100: Allow TCP 443 (Internet)</text>
+
+            <rect x="950" y="312" width="234" height="22" rx="4" fill="#fef2f2" stroke="#fecaca" stroke-width="1" />
+            <text x="958" y="327" fill="#991b1b" font-size="10" font-weight="600">&#10006; Priority 4096: Deny-All-Inbound</text>
+
+            <text x="714" y="356" fill="#64748b" font-size="10">Purpose: Production public ingress &amp; TLS termination</text>
+          </g>
+
+          <!-- Flow Arrow Web -> App -->
+          <path d="M 950 372 L 950 395" stroke="#10b981" stroke-width="2.5" marker-end="url(#arrow-green)" />
+          <rect x="960" y="375" width="160" height="18" rx="3" fill="#ecfdf5" stroke="#10b981" stroke-width="0.8" />
+          <text x="966" y="388" fill="#047857" font-size="9" font-weight="700">Allow TCP 8080 (Web CIDR Only)</text>
+
+          <!-- Subnet 2: App -->
+          <g id="prod-app-subnet">
+            <rect x="700" y="400" width="500" height="92" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" />
+            <rect x="700" y="400" width="500" height="24" rx="8" fill="#e2e8f0" />
+            <rect x="700" y="416" width="500" height="8" fill="#e2e8f0" />
+            <text x="714" y="417" fill="#0f172a" font-size="11" font-weight="700">Tier 2: snet-app (10.20.2.0/24)</text>
+            <text x="1020" y="417" fill="#0078d4" font-size="10" font-weight="600">Attached: nsg-app-prod</text>
+
+            <rect x="714" y="432" width="220" height="22" rx="4" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1" />
+            <text x="722" y="447" fill="#065f46" font-size="10" font-weight="600">&#10004; Priority 100: Allow TCP 8080 (snet-web)</text>
+
+            <rect x="950" y="432" width="234" height="22" rx="4" fill="#fef2f2" stroke="#fecaca" stroke-width="1" />
+            <text x="958" y="447" fill="#991b1b" font-size="10" font-weight="600">&#10006; Priority 4096: Deny-All-Inbound</text>
+
+            <text x="714" y="476" fill="#64748b" font-size="10">Purpose: High-availability production application clusters</text>
+          </g>
+
+          <!-- Flow Arrow App -> DB -->
+          <path d="M 950 492 L 950 515" stroke="#10b981" stroke-width="2.5" marker-end="url(#arrow-green)" />
+          <rect x="960" y="495" width="160" height="18" rx="3" fill="#ecfdf5" stroke="#10b981" stroke-width="0.8" />
+          <text x="966" y="508" fill="#047857" font-size="9" font-weight="700">Allow TCP 5432 (App CIDR Only)</text>
+
+          <!-- Subnet 3: DB -->
+          <g id="prod-db-subnet">
+            <rect x="700" y="520" width="500" height="92" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" />
+            <rect x="700" y="520" width="500" height="24" rx="8" fill="#e2e8f0" />
+            <rect x="700" y="536" width="500" height="8" fill="#e2e8f0" />
+            <text x="714" y="537" fill="#0f172a" font-size="11" font-weight="700">Tier 3: snet-db (10.20.3.0/24)</text>
+            <text x="1020" y="537" fill="#0078d4" font-size="10" font-weight="600">Attached: nsg-db-prod</text>
+
+            <rect x="714" y="552" width="220" height="22" rx="4" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1" />
+            <text x="722" y="567" fill="#065f46" font-size="10" font-weight="600">&#10004; Priority 100: Allow TCP 5432 (snet-app)</text>
+
+            <rect x="950" y="552" width="234" height="22" rx="4" fill="#fef2f2" stroke="#fecaca" stroke-width="1" />
+            <text x="958" y="567" fill="#991b1b" font-size="10" font-weight="600">&#10006; Priority 4096: Deny-All-Inbound</text>
+
+            <text x="714" y="596" fill="#64748b" font-size="10">Purpose: Production database backend with strict lateral isolation</text>
+          </g>
+
+          <!-- Prod Storage & Vault Resources -->
+          <g id="prod-storage-vault">
+            <!-- Key Vault -->
+            <rect x="680" y="660" width="260" height="120" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2" />
+            <rect x="680" y="660" width="260" height="26" rx="8" fill="#7c3aed" />
+            <rect x="680" y="678" width="260" height="8" fill="#7c3aed" />
+            <text x="694" y="678" fill="#ffffff" font-size="11" font-weight="700">Azure Key Vault (kv-prod-******)</text>
+            <text x="694" y="706" fill="#0f172a" font-size="11" font-weight="600">SKU: Standard</text>
+            <text x="694" y="724" fill="#64748b" font-size="10">&#8226; RBAC Authorization: Enabled</text>
+            <text x="694" y="742" fill="#64748b" font-size="10">&#8226; Purge Protection: Disabled (Configurable)</text>
+            <text x="694" y="760" fill="#64748b" font-size="10">&#8226; Production certificates &amp; credentials</text>
+
+            <!-- Storage Account -->
+            <rect x="960" y="660" width="260" height="120" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2" />
+            <rect x="960" y="660" width="260" height="26" rx="8" fill="#0284c7" />
+            <rect x="960" y="678" width="260" height="8" fill="#0284c7" />
+            <text x="974" y="678" fill="#ffffff" font-size="11" font-weight="700">Storage Account (stprod******)</text>
+            <text x="974" y="706" fill="#0f172a" font-size="11" font-weight="600">Standard_LRS (Local Redundancy)</text>
+            <text x="974" y="724" fill="#64748b" font-size="10">&#8226; Min TLS Version: TLS 1.2</text>
+            <text x="974" y="742" fill="#64748b" font-size="10">&#8226; Public Nested Items: Disabled</text>
+            <text x="974" y="760" fill="#64748b" font-size="10">&#8226; Production backups &amp; logs</text>
+          </g>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- TAB 2: ZERO-TRUST SECURITY MATRIX -->
+  <div id="tab-security" class="tab-content">
+    <div class="card" style="margin-bottom: 24px;">
+      <h2 class="card-title">Perimeter &amp; Inter-Tier Network Security Group Rules Matrix</h2>
+      <p style="color: var(--slate-600); margin-bottom: 16px; font-size: 0.9rem;">
+        Every subnet is bound to a dedicated NSG enforcing strict positive security models (default deny). Lateral movement between non-adjacent tiers (e.g., Web directly to DB) is completely forbidden by dropping packets via Priority 4096 before Azure default AllowVnetInBound kicks in.
+      </p>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Subnet / NSG</th>
+            <th>Rule Identifier</th>
+            <th>Priority</th>
+            <th>Protocol</th>
+            <th>Port</th>
+            <th>Authorized Source</th>
+            <th>Destination</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>snet-web</strong><br><span class="code-pill">nsg-web-{env}</span></td>
+            <td>Allow-HTTPS-Inbound</td>
+            <td>100</td>
+            <td>TCP</td>
+            <td>443</td>
+            <td>Internet (*)</td>
+            <td>Web Subnet (*)</td>
+            <td><span class="tag-allow">ALLOW</span></td>
+          </tr>
+          <tr>
+            <td><strong>snet-web</strong><br><span class="code-pill">nsg-web-{env}</span></td>
+            <td>Deny-All-Inbound</td>
+            <td>4096</td>
+            <td>ANY (*)</td>
+            <td>ANY (*)</td>
+            <td>ANY (*)</td>
+            <td>ANY (*)</td>
+            <td><span class="tag-deny">DENY</span></td>
+          </tr>
+          <tr>
+            <td><strong>snet-app</strong><br><span class="code-pill">nsg-app-{env}</span></td>
+            <td>Allow-Web-To-App-TCP-8080</td>
+            <td>100</td>
+            <td>TCP</td>
+            <td>8080</td>
+            <td>web_subnet_cidr</td>
+            <td>App Subnet (*)</td>
+            <td><span class="tag-allow">ALLOW</span></td>
+          </tr>
+          <tr>
+            <td><strong>snet-app</strong><br><span class="code-pill">nsg-app-{env}</span></td>
+            <td>Deny-All-Inbound</td>
+            <td>4096</td>
+            <td>ANY (*)</td>
+            <td>ANY (*)</td>
+            <td>ANY (*)</td>
+            <td>ANY (*)</td>
+            <td><span class="tag-deny">DENY</span></td>
+          </tr>
+          <tr>
+            <td><strong>snet-db</strong><br><span class="code-pill">nsg-db-{env}</span></td>
+            <td>Allow-App-To-DB-TCP-5432</td>
+            <td>100</td>
+            <td>TCP</td>
+            <td>5432</td>
+            <td>app_subnet_cidr</td>
+            <td>DB Subnet (*)</td>
+            <td><span class="tag-allow">ALLOW</span></td>
+          </tr>
+          <tr>
+            <td><strong>snet-db</strong><br><span class="code-pill">nsg-db-{env}</span></td>
+            <td>Deny-All-Inbound</td>
+            <td>4096</td>
+            <td>ANY (*)</td>
+            <td>ANY (*)</td>
+            <td>ANY (*)</td>
+            <td>ANY (*)</td>
+            <td><span class="tag-deny">DENY</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 3: CIDR PLAN -->
+  <div id="tab-subnets" class="tab-content">
+    <div class="grid-2">
+      <div class="card">
+        <h2 class="card-title">Development Environment (DEV)</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Resource</th>
+              <th>Name</th>
+              <th>CIDR Prefix</th>
+              <th>Azure Usable IPs</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>VNet</td>
+              <td><span class="code-pill">vnet-dev</span></td>
+              <td>10.10.0.0/16</td>
+              <td>65,531</td>
+            </tr>
+            <tr>
+              <td>Web Subnet</td>
+              <td><span class="code-pill">snet-web</span></td>
+              <td>10.10.1.0/24</td>
+              <td>251</td>
+            </tr>
+            <tr>
+              <td>App Subnet</td>
+              <td><span class="code-pill">snet-app</span></td>
+              <td>10.10.2.0/24</td>
+              <td>251</td>
+            </tr>
+            <tr>
+              <td>DB Subnet</td>
+              <td><span class="code-pill">snet-db</span></td>
+              <td>10.10.3.0/24</td>
+              <td>251</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Production Environment (PROD)</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Resource</th>
+              <th>Name</th>
+              <th>CIDR Prefix</th>
+              <th>Azure Usable IPs</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>VNet</td>
+              <td><span class="code-pill">vnet-prod</span></td>
+              <td>10.20.0.0/16</td>
+              <td>65,531</td>
+            </tr>
+            <tr>
+              <td>Web Subnet</td>
+              <td><span class="code-pill">snet-web</span></td>
+              <td>10.20.1.0/24</td>
+              <td>251</td>
+            </tr>
+            <tr>
+              <td>App Subnet</td>
+              <td><span class="code-pill">snet-app</span></td>
+              <td>10.20.2.0/24</td>
+              <td>251</td>
+            </tr>
+            <tr>
+              <td>DB Subnet</td>
+              <td><span class="code-pill">snet-db</span></td>
+              <td>10.20.3.0/24</td>
+              <td>251</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ARCHITECTURAL HIGHLIGHTS / FOOTER INFO -->
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title">DevSecOps &amp; Governance Design</h3>
+      <ul style="padding-left: 20px; font-size: 0.9rem; color: var(--slate-700); line-height: 1.8;">
+        <li><strong>Zero-Trust Default Deny:</strong> Overrides default cloud permissiveness by blocking untracked inbound traffic at priority 4096.</li>
+        <li><strong>State &amp; Secret Isolation:</strong> Dev and Prod environments maintain separate state storage accounts and Key Vaults.</li>
+        <li><strong>Global Uniqueness:</strong> Alphanumeric 6-character random entropy suffixes prevent naming collisions across Azure.</li>
+        <li><strong>Mandatory Tagging:</strong> Enforces <span class="code-pill">Environment</span>, <span class="code-pill">ManagedBy="Terraform"</span>, and <span class="code-pill">Project</span> tags.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 class="card-title">Azure for Students &amp; Cost Control</h3>
+      <ul style="padding-left: 20px; font-size: 0.9rem; color: var(--slate-700); line-height: 1.8;">
+        <li><strong>$0.00 Idle Cost:</strong> Virtual Networks, Subnets, and NSGs incur zero hourly provisioning fees in Azure.</li>
+        <li><strong>Free-Tier State Storage:</strong> Standard_LRS Storage Accounts consume fractions of a cent unless petabytes are stored.</li>
+        <li><strong>Standard Key Vault:</strong> Standard SKU avoids costly HSM / dedicated hardware modules while offering enterprise encryption.</li>
+        <li><strong>Zero Expensive Gateways:</strong> No NAT Gateways, App Gateways, or Azure Firewalls provisioned by default.</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <div>Architecture Artifact &bull; Senior Cloud &amp; DevSecOps Architect Portfolio</div>
+    <div>Terraform Project: <code>azure-terraform-multi-env</code></div>
+  </footer>
+</div>
+
+<script>
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(function(el) {
+      el.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      btn.classList.remove('active');
+    });
+    var activeTab = document.getElementById(tabId);
+    if (activeTab) {
+      activeTab.classList.add('active');
+    }
+    event.currentTarget.classList.add('active');
+  }
+</script>
+
+</body>
+</html>
